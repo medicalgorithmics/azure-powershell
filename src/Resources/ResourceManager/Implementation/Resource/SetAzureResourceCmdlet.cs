@@ -14,10 +14,12 @@
 
 namespace Microsoft.Azure.Commands.ResourceManager.Cmdlets.Implementation
 {
+    using Hyak.Common;
     using Microsoft.Azure.Commands.ResourceManager.Cmdlets.Components;
     using Microsoft.Azure.Commands.ResourceManager.Cmdlets.Entities.Resources;
     using Microsoft.Azure.Commands.ResourceManager.Cmdlets.Extensions;
     using Microsoft.WindowsAzure.Commands.Common;
+    using Newtonsoft.Json;
     using Newtonsoft.Json.Linq;
     using SdkExtensions;
     using SdkModels;
@@ -33,6 +35,13 @@ namespace Microsoft.Azure.Commands.ResourceManager.Cmdlets.Implementation
     [Cmdlet("Set", ResourceManager.Common.AzureRMConstants.AzureRMPrefix + "Resource", SupportsShouldProcess = true, DefaultParameterSetName = ResourceManipulationCmdletBase.ResourceIdParameterSet), OutputType(typeof(PSObject))]
     public sealed class SetAzureResourceCmdlet : ResourceManipulationCmdletBase
     {
+        /// <summary>
+        /// Gets or sets the identity object.
+        /// </summary>
+        [Alias("IdentityObject")]
+        [Parameter(Mandatory = false, ValueFromPipelineByPropertyName = true, HelpMessage = "An object which represents resource identity.")]
+        public ResourceIdentity Identity { get; set; }
+
         /// <summary>
         /// The object representation of the resource to update.
         /// </summary>
@@ -159,6 +168,8 @@ namespace Microsoft.Azure.Commands.ResourceManager.Cmdlets.Implementation
             {
                 var getResult = this.GetResource().Result;
 
+                TracingAdapter.Information("-- DEBUG -- getResult: " + JsonConvert.SerializeObject(getResult));
+
                 if (getResult.CanConvertTo<Resource<JToken>>())
                 {
                     var resource = getResult.ToResource();
@@ -169,7 +180,8 @@ namespace Microsoft.Azure.Commands.ResourceManager.Cmdlets.Implementation
                         Sku = this.Sku.ToDictionary(addValueLayer: false).ToJson().FromJson<ResourceSku>() ?? resource.Sku,
                         Tags = TagsHelper.GetTagsDictionary(this.Tag) ?? resource.Tags,
                         Location = resource.Location,
-                        Properties = this.Properties == null ? resource.Properties : this.Properties.ToResourcePropertiesBody()
+                        Properties = this.Properties == null ? resource.Properties : this.Properties.ToResourcePropertiesBody(),
+                        Identity = this.Identity ?? resource.Identity
                     }.ToJToken();
                 }
                 else
@@ -191,6 +203,11 @@ namespace Microsoft.Azure.Commands.ResourceManager.Cmdlets.Implementation
             }
 
             Resource<JToken> resourceBody = new Resource<JToken>();
+
+            if (this.Identity != null)
+            {
+                resourceBody.Identity = this.Identity;
+            }
 
             if (this.Properties != null)
             {
